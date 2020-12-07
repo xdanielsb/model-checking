@@ -5,7 +5,6 @@ MODULE Server(msg)
     --sending: boolean;
     --receiving: boolean;
     mode : { passive, active, connected };
-    synack : boolean;
   ASSIGN
     init(mode) := passive;
     next(mode) := case 
@@ -15,11 +14,8 @@ MODULE Server(msg)
       mode = connected : connected;
       TRUE: mode;
     esac;
-    next(synack):= case
-      mode = active & msg=ack: TRUE;
-      TRUE: FALSE;
-    esac;
   DEFINE
+    synack := mode=active & msg=ack;
 
 MODULE Client(synack)
   VAR
@@ -35,14 +31,25 @@ MODULE Client(synack)
 
 MODULE main
   VAR
-    client1:  Client(server1.synack);
-    server1:  Server(client1.msg);
+    client1: process Client(server1.synack);
+    server1: process Server(client1.msg);
+
+-- Liveness Properties
 
 -- The server can become connected
 SPEC EF(server1.mode=connected);
 -- From it is initial state, the server may eventually become connected
 SPEC AG(server1.mode=passive -> EF server1.mode=connected)
--- IF the client send a message of syn the server may eventually response synack
-SPEC AG(client1.msg=syn & server1.mode=active -> EF server1.synack=TRUE)
+-- IF the client send a message of syn the  next response of the server may eventually be synack
+SPEC AG(client1.msg=syn & server1.mode=active -> EX server1.synack=TRUE)
+
+--
+--SPEC AG(client1.mode=active U client1.msg)
+
+
+-- Safety Properties
+
+
+
 
 

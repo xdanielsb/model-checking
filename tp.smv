@@ -1,0 +1,48 @@
+-- ONE CLIENT - ONE SERVER 
+
+MODULE Server(msg)
+  VAR
+    --sending: boolean;
+    --receiving: boolean;
+    mode : { passive, active, connected };
+    synack : boolean;
+  ASSIGN
+    init(mode) := passive;
+    next(mode) := case 
+      mode = passive & msg = syn: active;
+      mode = active & msg = ack: connected;
+      mode = active : active;
+      mode = connected : connected;
+      TRUE: mode;
+    esac;
+    next(synack):= case
+      mode = active & msg=ack: TRUE;
+      TRUE: FALSE;
+    esac;
+  DEFINE
+
+MODULE Client(synack)
+  VAR
+    state : {connected, disconnected};
+    msg : {syn, ack};
+  ASSIGN
+    init(state):= disconnected;
+    next(state):= case
+      synack: connected;
+      state = connected: connected;
+      TRUE: state;
+    esac;
+
+MODULE main
+  VAR
+    client1:  Client(server1.synack);
+    server1:  Server(client1.msg);
+
+-- The server can become connected
+SPEC EF(server1.mode=connected);
+-- From it is initial state, the server may eventually become connected
+SPEC AG(server1.mode=passive -> EF server1.mode=connected)
+-- IF the client send a message of syn the server may eventually response synack
+SPEC AG(client1.msg=syn & server1.mode=active -> EF server1.synack=TRUE)
+
+

@@ -1,0 +1,13 @@
+MODULE inverter(input)
+  VAR
+    output: boolean;
+  ASSIGN
+    init(output) := TRUE;
+    next(output) := !output;
+
+MODULE main
+  VAR
+    gate1 : process inverter(gate3.output);
+    gate2 : process inverter(gate1.output);
+    gate3 : process inverter(gate2.output);
+

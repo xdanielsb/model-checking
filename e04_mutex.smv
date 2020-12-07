@@ -1,0 +1,27 @@
+MODULE main
+  VAR
+    semaphore : 0..1;
+    user1 : process client(semaphore);
+    user2 : process client(semaphore);
+  ASSIGN
+    init(semaphore) := 0;
+
+MODULE client(semaphore)
+  VAR
+    state : {idle, entering, critical, exiting};
+  ASSIGN
+    init(state) := idle;
+    next(state) := case
+      state = idle : { idle, entering};
+      state = entering & semaphore=0 : critical;
+      state = critical :  {critical, exiting};
+      state = exiting: idle;
+      TRUE: state;
+    esac;
+    next(semaphore) :=
+      case
+        state = entering : 1;
+        state = exiting : 0;
+        TRUE: semaphore;
+      esac;
+FAIRNESS running;

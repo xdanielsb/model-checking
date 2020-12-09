@@ -1,12 +1,16 @@
--- ONE CLIENT - ONE SERVER 
+-- author: xdanielsb
+-- date: 9-12-2020
+-- 1-client-1-server
 
 MODULE Server(msg)
   VAR
-    --sending: boolean;
-    --receiving: boolean;
+    sending: boolean;
+    receiving: boolean;
     mode : { passive, active, connected };
   ASSIGN
     init(mode) := passive;
+    init(sending) := FALSE;
+    init(receiving) := FALSE;
     next(mode) := case 
       mode = passive & msg = syn: active;
       mode = active & msg = ack: connected;
@@ -14,16 +18,19 @@ MODULE Server(msg)
       mode = connected : connected;
       TRUE: mode;
     esac;
+    next(sending):= mode=active & msg=ack;
+    next(receiving):= msg=ack | msg=syn;
   DEFINE
     synack := mode=active & msg=ack;
 
 MODULE Client(synack)
   VAR
-    state : {connected, disconnected};
+    state : { passive, active, connected };
     msg : {syn, ack};
   ASSIGN
-    init(state):= disconnected;
+    init(state):= passive;
     next(state):= case
+      msg = syn: active;
       synack: connected;
       state = connected: connected;
       TRUE: state;
@@ -31,25 +38,38 @@ MODULE Client(synack)
 
 MODULE main
   VAR
-    client1: process Client(server1.synack);
-    server1: process Server(client1.msg);
+    client1: Client(server1.synack);
+    server1: Server(client1.msg);
 
--- Liveness Properties
 
--- The server can become connected
+-- Safety property: the server is initially passive
+SPEC server1.mode=passive;
+
+-- Safety property: Whenever the server is passive, if it receives a message syn, it must 
+--   immediately reply with a message synack and become active.
+SPEC AG( (server1.mode=passive & client1.msg=syn) -> EX( server1.mode=active &  server1.synack=TRUE))
+
+-- Liveness property: The server can become connected
 SPEC EF(server1.mode=connected);
--- From it is initial state, the server may eventually become connected
-SPEC AG(server1.mode=passive -> EF server1.mode=connected)
--- IF the client send a message of syn the  next response of the server may eventually be synack
+
+-- Safety property: Whenever the server is active, it remains in that state until it receives
+--    another message from the client
+SPEC AG((server1.mode=active & client1.msg=ack) -> AF !(server1.mode=active))
+
+-- Liveness property: From it is initial state, the server may eventually become connected
+CTLSPEC AG(server1.mode=passive -> EF server1.mode=connected)
+
+-- Safety property: IF the client send a message of syn the  next response of the server may eventually be send synack
 SPEC AG(client1.msg=syn & server1.mode=active -> EX server1.synack=TRUE)
 
---
---SPEC AG(client1.mode=active U client1.msg)
+-- Safety property Whenever the server is connected, it can never become passive again
+CTLSPEC AF AG (server1.mode=connected  -> AG !(server1.mode=passive))
 
+-- Safety property: The server can not have one of the following states at the same time (passive, active, connected)
 
--- Safety Properties
-
-
-
-
+CTLSPEC AG (
+        (server1.mode=passive -> (!(server1.mode=active) & !(server1.mode=connected)))&
+        (server1.mode=active -> (!(server1.mode=passive) & !(server1.mode=connected)))&
+        (server1.mode=connected -> (!(server1.mode=active) & !(server1.mode=passive)))
+        )
 
